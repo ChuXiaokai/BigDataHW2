@@ -22,6 +22,7 @@
 import java.io.IOException;
 import java.util.StringTokenizer;
 import java.util.ArrayList;
+import java.text.DecimalFormat; 
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -44,29 +45,36 @@ public class Hw2Part1 {
   // reference: http://hadoop.apache.org/docs/r2.6.0/api/org/apache/hadoop/mapreduce/Mapper.html
   //
   public static class TokenizerMapper 
-       extends Mapper<Object, Text, Text[], DoubleWritable>{  // 1
+       extends Mapper<Object, Text, Text, DoubleWritable>{  // input type
 
-    private Text [] name = new Text[2];
+    private Text  user2user = new Text;
     private DoubleWritable time = new DoubleWritable(0);
       
     public void map(Object key, Text value, Context context
-                    ) throws IOException, InterruptedException {  // 2 => 1 & 2 must be the same
+                    ) throws IOException, InterruptedException { 
       System.out.println("fuck");
-      // every time input one row 
-      StringTokenizer itr = new StringTokenizer(value.toString());
-      name[0].set(itr.nextToken());
-      name[1].set(itr.nextToken());
-      time.set(Double.parseDouble(itr.nextToken()));
-      context.write(name, time);
-      System.out.println("fuck2");
+      String line = value.toString();
+      String[] lines = line.split("\n");
+      for (String each_line: lines){
+        String[] words = each_line.split(' ');
+        for(int i = 0; i <= 3; i++){
+          System.out.println(words[i]);
+        }
+        // judge if legal
+        if(words.length == 3){
+          user2user = words[0] + "?" + word[1];
+          time = DoubleWritable(words[2]);
+          context.write(user2user, time);
+        }
+      }
     }
   }
   
   public static class IntSumCombiner
-       extends Reducer<Text[],DoubleWritable,Text[],ArrayList> {
-    private ArrayList result = new ArrayList();
+       extends Reducer<Text[],DoubleWritable,Text[],ArrayList> {  // first and second param is the input from map
+    private ArrayList result = new ArrayList();                   // 3rd and 4th is the output of reducer
 
-    public void reduce(Text[] key, Iterable<DoubleWritable> values,
+    public void reduce(Text key, Iterable<DoubleWritable> values,  // input key: value
                        Context context
                        ) throws IOException, InterruptedException {
       double sum = 0.0;
@@ -93,8 +101,8 @@ public class Hw2Part1 {
   // count of word = count
   //
   public static class IntSumReducer
-       extends Reducer<Text[],DoubleWritable,Text,Text> {
-
+       extends Reducer<Text,DoubleWritable,Text,DoubleWritable> {  // first and second param is the input from map
+                                                                  // 3rd and 4th is the output of reducer
     private Text result_key= new Text();
     private Text result_value= new Text();
     private byte[] prefix;
@@ -102,14 +110,14 @@ public class Hw2Part1 {
 
     protected void setup(Context context) {  // what it for
       try {
-        //prefix= Text.encode("").array();
-        mid = Text.encode(" ").array();
+        prefix= Text.encode("count of ").array();
+        suffix= Text.encode(" =").array();
       } catch (Exception e) {
-        prefix = mid = new byte[0];
+        prefix = suffix = new byte[0];
       }
     }
 
-    public void reduce(Text[] key, Iterable<DoubleWritable> values, 
+    public void reduce(Text key, Iterable<DoubleWritable> values, 
                        Context context
                        ) throws IOException, InterruptedException {
       // int sum = 0;
@@ -122,23 +130,20 @@ public class Hw2Part1 {
         sum += val.get();
         num += 1;
       }
-      double average = sum/num;
+      double average = sum*1.0/(num*1.0);
+      
+      DecimalFormat df = new DecimalFormat("#.000");
+      sum = df.format(sum);
+      average = df.format(average);
+
       // generate result key
-      // result_key.set(prefix);
       // result_key: from-to-
-      result_key.set(key[0].getBytes());
-      result_key.append(mid, 0, mid.length);
-      result_key.append(key[1].getBytes(), 0, key[1].getLength());
-      result_key.append(mid, 0, mid.length);
-
-      // generate result value
-      // result_value: count-average
-      System.out.println(average);
-      result_value.set(Double.toString(num));
-      result_value.append(mid, 0, mid.length);
-      result_value.append((Double.toString(average)).getBytes(), 0, (Double.toString(average)).length());
-
-      context.write(result_key, result_value);
+      Text new_key = new Text(key + " " + Integer.toString(num) + " ");
+      result_key.set(prefix);
+      result_key.append(new_key.getBytes(), 0, new_key.getLength());
+      result_key.append(suffix, 0, suffix.length);
+      // gen result value
+      context.write(new_key, DoubleWritable(average));
     }
   }
 
