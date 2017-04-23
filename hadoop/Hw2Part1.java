@@ -21,6 +21,7 @@
 
 import java.io.IOException;
 import java.util.StringTokenizer;
+import java.util.ArrayList;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -50,13 +51,14 @@ public class Hw2Part1 {
       
     public void map(Object key, Text value, Context context
                     ) throws IOException, InterruptedException {  // 2 => 1 & 2 must be the same
-
+      System.out.println("fuck");
       // every time input one row 
       StringTokenizer itr = new StringTokenizer(value.toString());
       name[0].set(itr.nextToken());
       name[1].set(itr.nextToken());
-      time.set(Float.parseFloat(itr.nextToken()));
+      time.set(Double.parseDouble(itr.nextToken()));
       context.write(name, time);
+      System.out.println("fuck2");
     }
   }
   
@@ -64,14 +66,14 @@ public class Hw2Part1 {
        extends Reducer<Text[],DoubleWritable,Text[],ArrayList> {
     private ArrayList result = new ArrayList();
 
-    public void reduce(Text[] key, DoubleWritable values,
+    public void reduce(Text[] key, Iterable<DoubleWritable> values,
                        Context context
                        ) throws IOException, InterruptedException {
       double sum = 0.0;
       int num = 0;
       for (DoubleWritable val: values) {
         sum += val.get();
-        num += 1
+        num += 1;
       }
       result.add(num);
       result.add(result);
@@ -91,7 +93,7 @@ public class Hw2Part1 {
   // count of word = count
   //
   public static class IntSumReducer
-       extends Reducer<Text[],DoubleWritable,Text[],ArrayList> {
+       extends Reducer<Text[],DoubleWritable,Text,Text> {
 
     private Text result_key= new Text();
     private Text result_value= new Text();
@@ -107,7 +109,7 @@ public class Hw2Part1 {
       }
     }
 
-    public void reduce(Text[] key, DoubleWritable values, 
+    public void reduce(Text[] key, Iterable<DoubleWritable> values, 
                        Context context
                        ) throws IOException, InterruptedException {
       // int sum = 0;
@@ -118,22 +120,23 @@ public class Hw2Part1 {
       int num = 0;
       for (DoubleWritable val: values) {
         sum += val.get();
-        num += 1
+        num += 1;
       }
       double average = sum/num;
       // generate result key
       // result_key.set(prefix);
       // result_key: from-to-
-      result_key.set(key[0].getBytes())
+      result_key.set(key[0].getBytes());
       result_key.append(mid, 0, mid.length);
       result_key.append(key[1].getBytes(), 0, key[1].getLength());
       result_key.append(mid, 0, mid.length);
 
       // generate result value
       // result_value: count-average
+      System.out.println(average);
       result_value.set(Double.toString(num));
       result_value.append(mid, 0, mid.length);
-      result_value.append(Double.toString(average), 0, (Double.toString(average)).length);
+      result_value.append((Double.toString(average)).getBytes(), 0, (Double.toString(average)).length());
 
       context.write(result_key, result_value);
     }
@@ -151,12 +154,13 @@ public class Hw2Part1 {
 
     job.setJarByClass(Hw2Part1.class);
 
+    System.out.println("jinrufauck");
     job.setMapperClass(TokenizerMapper.class);
-    job.setCombinerClass(IntSumCombiner.class);
+  //  job.setCombinerClass(IntSumCombiner.class);
     job.setReducerClass(IntSumReducer.class);
 
     job.setMapOutputKeyClass(Text[].class);
-    job.setMapOutputValueClass(FloatWritable.class);
+    job.setMapOutputValueClass(DoubleWritable.class);
 
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(Text.class);
