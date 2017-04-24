@@ -142,7 +142,7 @@ public:
 
 class VERTEX_CLASS_NAME(): public Vertex <double, double, double> {
 public:
-    void compute(MessageIterator* pmsgs) {
+    void compute(MessageIterator* pmsgs) { // pmsgs是消息指针
         double val;
         if (getSuperstep() == 0) {
            val= 1.0;
@@ -155,7 +155,7 @@ public:
             }
 
             double sum = 0;
-            for ( ; ! pmsgs->done(); pmsgs->next() ) {
+            for ( ; ! pmsgs->done(); pmsgs->next() ) {  // 通过这个获取所有消息的值
                 sum += pmsgs->getValue();
             }
             val = 0.15 + 0.85 * sum;
