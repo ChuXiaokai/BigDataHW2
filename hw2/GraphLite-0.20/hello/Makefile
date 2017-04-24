@@ -11,7 +11,7 @@ LIB_GRAPHALGO=-fPIC -shared
 # target
 # ----------------------------------------------------------------------
 
-all : example
+all : hello
 
 # ----------------------------------------------------------------------
 # example graph algorithms
@@ -24,7 +24,7 @@ example: ${EXAMPLE_ALGOS}
 %.so : %.cc
 	${CXX} ${CFLAGS_COMMON} $< ${LIB_GRAPHALGO} -o $@
 
-hello.so : hello.cc
+PageRankVertex.so : hello.cc
 
 # ----------------------------------------------------------------------
 # clean up

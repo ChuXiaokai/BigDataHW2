@@ -8,8 +8,15 @@
 
 #define VERTEX_CLASS_NAME(name) DirectedTriangleCount##name
 
+/*    
+    int in;//in triangle
+    int out;//out triangle
+    int through;//through triangle
+    int cycle;//cycle triangle
+*/
+
 typedef struct Res {
-    int through, cycle;
+    int in, out, through, cycle;
 } Res;
 
 class VERTEX_CLASS_NAME(InputFormatter): public InputFormatter {
@@ -88,50 +95,79 @@ public:
 class VERTEX_CLASS_NAME(Aggregator): public Aggregator<Res> {
 public:
     void init() {
+        // every time when a step finished. m_global reset to 0
         memset(&m_global, 0, sizeof(Res));
         memset(&m_local, 0, sizeof(Res));
     }
-    void* getGlobal() { return &m_global; }
+    void* getGlobal() {  // when merge finished. every worker do getGlobal
+        printf("get getGlobal() global.through = %d, global.cycle = %d\n", m_global.through, m_global.cycle);
+        return &m_global; 
+    }
+    void setGlobal(const void* p) {  // worker do. 
+        printf("set getGlobal !!!\n");
+        memmove(&m_global, p, sizeof(Res)); 
+    }
 
-    void setGlobal(const void* p) { memmove(&m_global, p, sizeof(Res)); }
+    void* getLocal() {  
+        printf("getlocal() m_local.through = %d\n", m_local.through);
+        return &m_local; 
+    }
 
-    void* getLocal() { return &m_local; }
-
-    void merge(const void* p) {
+    void merge(const void* p) {  // master
+                                // every time a worker push its work. master do merge
+        printf("merge() m_global.through = %d, p->through = %d\n", m_global.through, ((Res*)p)->through);
         m_global.through += ((Res*)p)->through;
         m_global.cycle += ((Res*)p)->cycle;
+        m_global.in += ((Res*)p)->in;
+        m_global.out += ((Res*)p)->out;
+
     }
-    void accumulate(const void* p) {
+    void accumulate(const void* p) {  // every vertex
+        printf("!!!+++accumulate() m_local.through = %d, p->through = %d\n", m_local.through, ((Res*)p)->through);
         m_local.through += ((Res*)p)->through;
         m_local.cycle += ((Res*)p)->cycle;
+        m_local.in += ((Res*)p)->in;
+        m_local.out += ((Res*)p)->out;
     }
 };
 
 class VERTEX_CLASS_NAME(): public Vertex <Res, double, int64_t> {
 public:
     void compute(MessageIterator* pmsgs) {
-        if(getSuperstep() == 0) sendMessageToAllNeighbors(m_pme->m_v_id); // send outedge's src node info to neighbor
-        else if(getSuperstep() == 1)
+        if(getSuperstep() == 0){
+            sendMessageToAllNeighbors(m_pme->m_v_id); // send outedge's src node info to neighbor
+            printf("================== step 0 =================\n");
+        }
+        else if(getSuperstep() == 1){
+            printf("================== step 1 =================\n");
             for(; !pmsgs->done(); pmsgs->next()) {
                 sendMessageToAllNeighbors(pmsgs->getValue());    // send inedge's src node info to neighbor
                 sendMessageTo(m_pme->m_v_id, pmsgs->getValue()); // tell superstep 2 inedge info
             }
+        }
         else if(getSuperstep() == 2) {
+            printf("================== step 2 =================\n");
             vector<int64_t> grandfathers;
             set<int64_t> fathers, kids;
             Res res_local = {0, 0};
             for(; !pmsgs->done(); pmsgs->next())
-                if(((Msg*)pmsgs->getCurrent())->s_id == m_pme->m_v_id)
-                    fathers.insert(pmsgs->getValue());           // establish in_list/fathers set
+                if(((Msg*)pmsgs->getCurrent())->s_id == m_pme->m_v_id)  // s_id => source id of the msg; if this message is send to itself
+                    fathers.insert(pmsgs->getValue());           // get all its father in set<father>
                 else grandfathers.push_back(pmsgs->getValue());  // establish grandfathers vector
-            for(auto kids_iter = getOutEdgeIterator(); !kids_iter.done(); kids_iter.next())
-                kids.insert(kids_iter.target());                 // establish out_list/kids set
+            for(auto kids_iter = getOutEdgeIterator(); !kids_iter.done(); kids_iter.next()) // count the out edge 1->2
+                kids.insert(kids_iter.target());                 // find all the kid 
+                                                                // target 1->2  target = 2
             for(auto iter = grandfathers.begin(); iter != grandfathers.end(); ++iter) {
-                if(fathers.find(*iter) != fathers.end()) ++res_local.through;
+                if(fathers.find(*iter) != fathers.end()){
+                    ++res_local.through;  // it means father has a iter 
+                    ++res_local.in;
+                    ++res_local.out;
+                }
                 if(kids.find(*iter) != kids.end()) ++res_local.cycle;
             }
             accumulateAggr(0, &res_local);
         } else if(getSuperstep() == 3) {
+            printf("================== step 3 =================\n");
             * mutableValue() = *(Res*)getAggrGlobal(0);
             voteToHalt();
         }
